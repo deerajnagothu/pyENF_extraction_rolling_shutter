@@ -6,12 +6,13 @@ import numpy as np
 import cv2
 import pickle
 import pyenf
-from scipy import signal,io
+from scipy import signal, io
 from scipy.fftpack import fftshift
 import matplotlib.pyplot as plt
+import librosa
 
 # Constants
-open_video_to_extract_Row_signal = False  # set it to 1 to extract, else 0 to use the dump file
+open_video_to_extract_Row_signal = False  # set it to True to extract, else False to use the dump file
 video_filepath = "Recordings/resized_MVI_0292.avi"
 
 
@@ -68,17 +69,17 @@ if open_video_to_extract_Row_signal is True:
     video.release()
     cv2.destroyAllWindows()
     # store the variables for faster future use
-    store_variable_file = open('row_signal.pkl', 'wb')
+    store_variable_file = open('Recordings/row_signal.pkl', 'wb')
     pickle.dump(row_signal, store_variable_file)
     store_variable_file.close()
     print("Extracted Row Signal and stored in dump.\n")
 else:
-    load_variable_file = open('row_signal.pkl', 'rb')
+    load_variable_file = open('Recordings/row_signal.pkl', 'rb')
     row_signal = pickle.load(load_variable_file)
     load_variable_file.close()
     print("Loaded the Row Signal. \n")
 
-time = np.arange(0.0,size_of_row_signal)
+time = np.arange(0.0, size_of_row_signal)
 
 # For a static video, clean the row signal with its video signal
 # that should leave only the ENF signal
@@ -87,30 +88,56 @@ time = np.arange(0.0,size_of_row_signal)
 # average_of_each_row_element(row_signal) = average_of_each_row_element(video_signal) [since average of enf is 0]
 # enf_signal = row_signal - average_of_each_row_element(row_signal)
 
+# Estimate the ENF signal using the row signal collected
 average_of_each_row_element = np.mean(row_signal, axis=0)
 enf_video_signal = row_signal - average_of_each_row_element
-flattened_enf_signal = row_signal.flatten()
-# plotting the spectrogram of the signal
+flattened_enf_signal = enf_video_signal.flatten() # the matrix shape ENF data is flattened to one dim data
 
-f,t,Sxx = signal.spectrogram(flattened_enf_signal,fs=frame_rate*height_of_frame, nperseg=None, mode='psd')
+fs = 1000 # downsampling frequency
+filename = "mediator.wav"
+# Writing the ENF data to the wav file for data type conversion
+io.wavfile.write(filename, rate=int(frame_rate * height_of_frame), data=flattened_enf_signal)
 
-plt.pcolormesh(t, fftshift(f), fftshift(Sxx, axes=0))
+signal0, fs = librosa.load(filename, sr=fs)
 
-#plt.specgram(flattened_enf_signal,Fs=frame_rate)
-plt.ylabel('Frequency [Hz]')
-plt.xlabel('Time [sec]')
-plt.show()
+video_signal_object = pyenf.pyENF(signal0=signal0, fs=fs, nominal=60, harmonic_multiples=1, duration=0.1,
+                                  strip_index=0)
+spectro_strip, frequency_support = video_signal_object.compute_spectrogam_strips()
+weights = video_signal_object.compute_combining_weights_from_harmonics()
+OurStripCell, initial_frequency = video_signal_object.compute_combined_spectrum(spectro_strip, weights, frequency_support)
+ENF = video_signal_object.compute_ENF_from_combined_strip(OurStripCell, initial_frequency)
+fig, (video,power,corr) = plt.subplots(3,1,sharex=True)
+video.plot(ENF[:-7])
+video.set_title("ENF Signal")
+#video.ylabel("Frequency (Hz)")
+#video.xlabel("Time (sec)")
+#plt.show()
 
-fig, (ax1,ax2) = plt.subplots(nrows=2)
-ax2.use_sticky_edges = False
-ax1.plot(time,flattened_enf_signal)
-Pxx, freq, bins, im = ax2.specgram(flattened_enf_signal,NFFT=8192,Fs=int(frame_rate*height_of_frame), noverlap=0)
+power_signal_filename = 'Recordings/80D_power_recording_7.wav'
+power_signal0, fs = librosa.load(power_signal_filename, sr=fs)
+power_signal_object = pyenf.pyENF(signal0=power_signal0, fs=fs, nominal=60, harmonic_multiples=1, duration=0.1,
+                                  strip_index=0)
+power_spectro_strip, power_frequency_support = power_signal_object.compute_spectrogam_strips()
+power_weights = power_signal_object.compute_combining_weights_from_harmonics()
+power_OurStripCell, power_initial_frequency = power_signal_object.compute_combined_spectrum(power_spectro_strip, power_weights, power_frequency_support)
+power_ENF = power_signal_object.compute_ENF_from_combined_strip(power_OurStripCell, power_initial_frequency)
 
-plt.show()
-io.wavfile.write("video_plain_original.wav",rate=int(frame_rate*height_of_frame),data=flattened_enf_signal)
+power.plot(power_ENF[:-7])
+power.set_title("Power ENF Signal")
+#power.ylabel("Frequency (Hz)")
+#power.xlabel("Time (sec)")
+#plt.show()
+
+print("Correlating the signal")
+enf_corr = signal.correlate(ENF,power_ENF,mode='same')
+
+corr.plot(enf_corr)
+corr.axhline(0.5,ls=':')
+fig.tight_layout()
+fig.show()
 # estimate the idle period for the given row signal
 
-# Estimate the ENF signal using the idle period and the row signal collected
+
 
 # Cross-correlation coefficient to compare the estimated signals from the power recordings and
 # the estimated video frames.

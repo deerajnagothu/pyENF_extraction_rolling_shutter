@@ -11,10 +11,10 @@ from scipy.misc import imresize
 
 class pyENF:
 
-    def __init__(self, filename, fs=1000, frame_size_secs=1, overlap_amount_secs=0, nfft=8192, nominal=None,
+    def __init__(self, signal0, fs=1000, frame_size_secs=1, overlap_amount_secs=0, nfft=4096, nominal=None,
                  harmonic_multiples=None, duration=None, width_band=1, width_signal=0.02, strip_index=0):
 
-        self.filename = filename
+        self.signal0 = signal0
         # self.signal0 = 0  # full signal
         self.fs = fs  # sampling frequency required
         self.frame_size_secs = frame_size_secs  # Window size in seconds
@@ -36,7 +36,7 @@ class pyENF:
 
         # Extract the sampling frequency of the given audio recording and return the fs
 
-    def read_initial_data(self):
+    """def read_initial_data(self):
         # self.orig_wav = wave.open(self.filename)
         # self.original_sampling_frequency = self.orig_wav.getframerate()  # get sampling frequency
         self.signal0, self.fs = librosa.load(self.filename, sr=self.fs)
@@ -44,6 +44,7 @@ class pyENF:
         # print("Sampling frequency Changed to ", self.fs)
 
         return self.signal0, self.fs
+    """
 
     # If the given audio file has higher sampling frequency then this function will create a new audio file by setting
     # all the traits of original audio file to new file and change the sampling frequency
@@ -136,7 +137,7 @@ class pyENF:
         All_strips_Cell = []
 
         for dur in range(number_of_duration - 1):
-            print(dur)
+            # print(dur)
 
             # dividing the signal based on the duration selected.
 
@@ -288,10 +289,17 @@ class pyENF:
 
 
 def main():
-    mysignal = pyENF(filename="Recordings/80D_power_recording_7.wav", nominal=60, harmonic_multiples=1, duration=0.1,
+    #mysignal = pyENF(filename="video_enf_extracted.wav", nominal=60, harmonic_multiples=1, duration=0.1,
+    #                 strip_index=0)
+    #reading the file before hand and passing the signal instead of just file name
+    filename = 'video_enf_extracted.wav'
+    fs = 1000
+    signal0, fs = librosa.load(filename,sr=fs)
+    print(signal0[0:10])
+    mysignal = pyENF(signal0=signal0, fs=fs, nominal=60, harmonic_multiples=1, duration=0.1,
                      strip_index=0)
 
-    x, fs = mysignal.read_initial_data()
+    #x, fs = mysignal.read_initial_data()
 
     spectro_strip, frequency_support = mysignal.compute_spectrogam_strips()
 
@@ -306,9 +314,9 @@ def main():
     plt.ylabel("Frequency (Hz)")
     plt.xlabel("Time (sec)")
     plt.show()
-    print(ENF[:-5])
-    print(frequency_support)
-    print(weights)
+    #print(ENF[:-5])
+    #print(frequency_support)
+    #print(weights)
     # print(initial_frequency)
     # print(((OurStripCell[0]).shape)[1])
 
