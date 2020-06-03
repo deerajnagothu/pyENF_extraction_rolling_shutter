@@ -19,3 +19,6 @@ scipy==1.1.0
 six==1.13.0
 SoundFile==0.10.2
 Wave==0.0.2
+scikit-image~=0.17.2
+moviepy~=1.0.3
+opencv-python~=4.2.0.34
